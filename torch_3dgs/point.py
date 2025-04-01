@@ -30,18 +30,29 @@ def get_point_clouds(cameras, depths, alphas, rgbs=None):
     # Hint: You need to use the camera intrinsics (intrinsics) and extrinsics (c2ws)
     # to convert pixel coordinates into world-space rays.
     # rays_o, rays_d = ......
-
+    fx, fy, cx, cy = intrinsics[0, 0], intrinsics[1, 1], intrinsics[0, 2], intrinsics[1, 2]
+    u, v = torch.meshgrid(torch.arange(W), torch.arange(H))
+    u = u.flatten()
+    v = v.flatten()
+    x = (u - cx) / fx
+    y = (v - cy) / fy
+    directions = torch.stack([x, y, torch.ones_like(x)], dim=-1)  # (num_pixels, 3)
+    rays_d = torch.matmul(c2ws[:, :3, :3], directions.T).T  # Rotate directions from camera to world space
+    rays_o = c2ws[:, :3, 3]  # (num_cameras, 3)
     # TODO: Compute 3D world coordinates using depth values
     # Hint: Use the ray equation: P = O + D * depth
     # P: 3D point, O: ray origin, D: ray direction, depth: depth value
     # pts = ......
-
+    pts = rays_o[:, None, :] + rays_d * depths.flatten()[:, None]
     # TODO: Apply the alpha mask to filter valid points
     # Hint: Mask should be applied to both coordinates and RGB values (if provided)
     # mask = ......
     # coords = pts[mask].cpu().numpy()
-
+    mask = alphas.flatten() > 0.5
+    coords = pts[mask].cpu().numpy()
     if rgbs is not None:
+        rgbs = rgbs.flatten()
+        rgbas = rgbs[mask].cpu().numpy()
         channels = dict(
             R=rgbas[..., 0],
             G=rgbas[..., 1],
